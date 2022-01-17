@@ -1,0 +1,91 @@
+---
+title: "Fitbit Runs Analysis"
+author: "Edwin Reyes Herrera"
+output:
+  html_document:
+    code_folding: show
+    df_print: paged
+---
+
+```{r libs, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(stringr)
+library(reticulate)
+library(factoextra)
+```
+
+```{r run_data}
+runs <- read.csv('/Users/EdwinReyesHerrera/Documents/Python_Projects/Fitbit Runs/fitbit_activities.csv')
+```
+ 
+```{r data_cleaning}
+cluster_data <- runs %>%
+  filter(type == 'Running', total_dist != 0, avg_BPM != 0) %>%
+  select(-c(X, type, start_time, end_time)) %>%
+  mutate(file = str_extract(file, '\\d+')) %>%
+  column_to_rownames('file')
+```
+
+```{r best_k}
+SS <- rep(0, 25)
+for(i in 1:25){
+  SS[i] <- kmeans(scale(cluster_data), centers = i, nstart = 25)$tot.withinss  
+}
+tune_data <- data.frame(K = 1:25, SS)
+
+tune_data %>%
+  ggplot(aes(x = K, y = SS)) +
+  geom_col(fill = "black") +
+  geom_point(color = 'red') +
+  geom_line(color = 'red') +
+  geom_vline(color = 'red', xintercept = 5, linetype =2) +
+  labs(x = "Number of Clusters (K)", y = "Total Sum of Squared Distances", 
+       title = "Optimal Number of Clusters") +
+  theme_minimal()
+```
+```{r best_k_fviz}
+fviz_nbclust(scale(cluster_data), kmeans, method = "wss") +
+  geom_vline(xintercept = 5, linetype = 2)
+```
+
+
+```{r k_means_model}
+# K-means clustering
+kmeans_model <- kmeans(scale(cluster_data), centers = 5, nstart = 25)
+```
+
+```{r cluster_analysis}
+cluster_data_groups <- cluster_data %>%
+  mutate(clusters = as.factor(kmeans_model$cluster))
+
+cluster_data_groups %>%
+  group_by(clusters) %>%
+  summarise_all(list(mean = mean))
+```
+```{r cluster_viz}
+fviz_cluster(kmeans_model, data = cluster_data, geom = 'point', 
+             ellipse.type = 'convex', ggtheme = theme_bw())
+```
+```{r pca_analysis}
+# Compute PCA
+pca_results <- prcomp(cluster_data, scale = TRUE)
+```
+
+```{r pca_clusters}
+fviz_pca_ind(pca_results, geom = 'point', habillage = cluster_data_groups$clusters)
+```
+```{r loadings}
+fviz_pca_var(pca_results, repel = TRUE)
+```
+
+```{r pca_biplot}
+fviz_pca_biplot(pca_results, repel = TRUE,
+                col.var = 'black', # Variables color
+                geom = 'point', # Indiv. colors
+                habillage = cluster_data_groups$clusters
+                )
+```
+## Helpful Sources
+
+http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/112-pca-principal-component-analysis-essentials/

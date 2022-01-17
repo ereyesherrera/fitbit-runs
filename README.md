@@ -1,4 +1,4 @@
-# Clustering GPS Tracker Run Activity
+# Clustering GPS Tracker Activity
 
 ## About
 
